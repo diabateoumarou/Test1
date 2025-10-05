@@ -1,0 +1,66 @@
+# Pipeline Azure DevOps pour Python avec tests
+
+trigger:
+  branches:
+    include:
+    - main
+    - develop
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  pythonVersion: '3.11'
+
+stages:
+- stage: Build
+  displayName: 'Build et Test'
+  jobs:
+  - job: BuildAndTest
+    displayName: 'Construire et tester l application'
+    steps:
+    
+    - task: UsePythonVersion@0
+      inputs:
+        versionSpec: '$(pythonVersion)'
+      displayName: 'Installer Python $(pythonVersion)'
+    
+    - script: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+      displayName: 'Installer les dépendances'
+    
+    - script: |
+        pip list
+      displayName: 'Afficher les packages installés'
+    
+    - script: |
+        pytest test_app.py -v --junitxml=test-results.xml --cov=app --cov-report=xml --cov-report=html
+      displayName: 'Exécuter les tests avec couverture'
+    
+    - task: PublishTestResults@2
+      condition: succeededOrFailed()
+      inputs:
+        testResultsFormat: 'JUnit'
+        testResultsFiles: '**/test-results.xml'
+        testRunTitle: 'Tests Python'
+        failTaskOnFailedTests: true
+      displayName: 'Publier les résultats des tests'
+    
+    - task: PublishCodeCoverageResults@1
+      condition: succeededOrFailed()
+      inputs:
+        codeCoverageTool: 'Cobertura'
+        summaryFileLocation: '$(System.DefaultWorkingDirectory)/coverage.xml'
+        reportDirectory: '$(System.DefaultWorkingDirectory)/htmlcov'
+      displayName: 'Publier la couverture de code'
+    
+    - script: |
+        echo "Exécution de l'application..."
+        python app.py
+      displayName: 'Exécuter l application'
+    
+    - script: |
+        echo "Build terminé avec succès !"
+        echo "Tous les tests sont passés ✓"
+      displayName: 'Message de succès'
